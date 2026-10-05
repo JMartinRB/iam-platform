@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Entorno y secretos
+.env
+*.key
+
+# Datos generados
+datasets/*
+!datasets/.gitkeep
+
+# Node
+node_modules/
+dist/
+build/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Base de datos local
+*.db
+*.sqlite3
+
+# datos de autogeneracion de Alembic
+backend/_tmp_autogen.db
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

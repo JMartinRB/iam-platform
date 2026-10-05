@@ -1,0 +1,15 @@
+line-length = 90
+target-version = "py312"
+# Las revisiones de Alembic se generan automaticamente: se revisan a mano,
+# pero no se reformatean para no tocar codigo que la herramienta reescribe.
+extend-exclude = ["migraciones/versions"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+# B008: Depends() en el valor por omision es la forma en que FastAPI declara
+# sus dependencias. RUF001-003: los acentos y comillas del espanol en
+# docstrings y comentarios no son caracteres ambiguos para este proyecto.
+ignore = ["B008", "RUF001", "RUF002", "RUF003"]
+
+[lint.per-file-ignores]
+"tests/*" = ["E501"]
