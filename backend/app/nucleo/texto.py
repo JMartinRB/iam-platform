@@ -34,6 +34,22 @@ def normalizar_codigo(valor: str | None) -> str:
     return texto.strip("_").upper()
 
 
+def normalizar_identificador(valor: str | None) -> str:
+    """Normaliza un identificador propio del archivo, sin unificar separadores.
+
+    Se usa para codigos que son etiquetas y no claves de cruce, como el de
+    una regla de Segregacion de Funciones. Ahi el guion es parte del nombre
+    y convertirlo en guion bajo solo logra que el codigo que ve el analista
+    no coincida con el que figura en su documentacion.
+
+    >>> normalizar_identificador("  sod-009 ")
+    'SOD-009'
+    """
+    if valor is None:
+        return ""
+    return re.sub(r"\s+", "_", quitar_tildes(valor).strip()).upper()
+
+
 def normalizar_texto(valor: str | None) -> str:
     """Colapsa espacios y recorta, sin tocar mayusculas ni acentos."""
     if valor is None:

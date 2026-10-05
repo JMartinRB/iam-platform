@@ -91,6 +91,34 @@ detección.
 La generación es determinística: la misma semilla produce byte a byte el mismo
 conjunto, que es lo que exige el indicador de consistencia del plan de pruebas.
 
+## Análisis
+
+Una vez cargado un dataset, el módulo de análisis aplica las cinco reglas de
+detección y produce hallazgos con severidad, índice de riesgo, evidencia y
+recomendación. El plan de pruebas completo se ejecuta con:
+
+```bash
+cd backend
+python -m herramientas.medir --url "$DATABASE_URL" --salida medicion.json
+```
+
+Medición sobre PostgreSQL 16, con los conjuntos generados con la semilla por
+omisión:
+
+| Indicador | Umbral | D-1 | D-2 | D-3 |
+|-----------|--------|-----|-----|-----|
+| Tiempo de análisis | < 60 s | 0,24 s | 0,80 s | 2,05 s (p95 2,22 s) |
+| Precisión | > 90 % | 100 % | 100 % | 100 % |
+| Exhaustividad | > 85 % | 100 % | 100 % | 100 % |
+| Consistencia | sin variación | — | 3 corridas idénticas | — |
+
+Sobre la interpretación de esos valores: el generador y el detector comparten
+las definiciones de cada categoría, así que la medición verifica que las
+reglas estén implementadas como se especificaron y que el recorrido completo
+—importación, normalización, análisis— no pierda ni invente hallazgos. No
+mide el desempeño del detector frente a datos reales, que tienen ambigüedades
+que un conjunto sintético no reproduce.
+
 ## Ejecución
 
 ```bash

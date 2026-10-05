@@ -634,12 +634,20 @@ class Generador:
         for codigo in (regla["permiso_a"], regla["permiso_b"]):
             if codigo not in otorgados:
                 otorgados[codigo] = self._asignacion(usuario, codigo, "directa", "")
+        # Agregar el par puede activar mas de una regla: cada mitad nueva
+        # puede entrar en conflicto con un permiso que el usuario ya tenia y
+        # que hasta recien era inofensivo. La verdad de referencia tiene que
+        # declarar todas las reglas infringidas, no solo la que se eligio,
+        # porque el motor las va a detectar todas y de lo contrario esas
+        # detecciones correctas se contarian como falsos positivos.
+        infringidas = self._conflictos(set(otorgados))
         self.plantados["conflicto_sod"].append(
             {
                 "legajo": usuario["legajo"],
                 "regla": regla["codigo"],
                 "permisos": [regla["permiso_a"], regla["permiso_b"]],
                 "severidad": regla["severidad"],
+                "reglas_infringidas": sorted(r["codigo"] for r in infringidas),
             }
         )
 
@@ -975,6 +983,13 @@ class Generador:
             "totales_plantados": {
                 categoria: len(items) for categoria, items in self.plantados.items()
             },
+            # El conflicto de SoD se remedia por regla, no por persona, asi
+            # que el motor emite un hallazgo por cada par infringido. Este es
+            # el total contra el que hay que medirlo.
+            "conflictos_sod_por_regla": sum(
+                len(caso["reglas_infringidas"])
+                for caso in self.plantados["conflicto_sod"]
+            ),
             "ruido": self.ruido,
             "motivos_filas_malformadas": [
                 f["_motivo"] for f in self.filas_malformadas

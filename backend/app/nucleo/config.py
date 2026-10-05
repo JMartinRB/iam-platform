@@ -19,7 +19,12 @@ class Configuracion(BaseSettings):
 
     # umbrales del módulo de análisis
     dias_cuenta_dormida: int = 90
-    percentil_sobreprivilegio: int = 95
+    # Múltiplo de la mediana de permisos del puesto a partir del cual se
+    # considera sobreprivilegio. Se usa la mediana y no un percentil porque
+    # en un grupo chico los propios casos atípicos corren el percentil.
+    factor_sobreprivilegio: float = 2.0
+    minimo_pares_sobreprivilegio: int = 5
+    antiguedad_creep_dias: int = 365
 
 
 @lru_cache

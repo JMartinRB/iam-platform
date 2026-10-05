@@ -171,6 +171,40 @@ def test_cada_conflicto_plantado_coincide_con_su_regla(dataset_d1: dict) -> None
         assert regla["permiso_b"] in permisos
         assert set(caso["permisos"]) == {regla["permiso_a"], regla["permiso_b"]}
         assert caso["severidad"] == regla["severidad"]
+        assert regla["codigo"] in caso["reglas_infringidas"]
+
+
+def test_las_reglas_infringidas_declaradas_son_todas_las_que_se_infringen(
+    dataset_d1: dict,
+) -> None:
+    """La verdad de referencia del SoD se declara por par, no por persona.
+
+    Plantar un par puede activar otras reglas, porque cada permiso nuevo
+    puede chocar con uno que el usuario ya tenia. Si el manifiesto declarara
+    solo la regla elegida, esas detecciones correctas se contarian como
+    falsos positivos y la precision medida saldria peor que la real.
+    """
+    reglas = [
+        (r["codigo"], r["permiso_a"], r["permiso_b"])
+        for r in dataset_d1["tablas"]["reglas_sod"]
+        if r["activa"].lower() == "true"
+    ]
+    activas = _activas_por_legajo(dataset_d1["tablas"])
+    manifiesto = dataset_d1["manifiesto"]
+
+    declarados = {
+        (caso["legajo"], codigo)
+        for caso in manifiesto["hallazgos_plantados"]["conflicto_sod"]["casos"]
+        for codigo in caso["reglas_infringidas"]
+    }
+    reales = {
+        (legajo, codigo)
+        for legajo, permisos in activas.items()
+        for codigo, a, b in reglas
+        if a in permisos and b in permisos
+    }
+    assert declarados == reales
+    assert len(declarados) == manifiesto["conflictos_sod_por_regla"]
 
 
 def test_privilege_creep_deja_el_rastro_esperado(dataset_d1: dict) -> None:

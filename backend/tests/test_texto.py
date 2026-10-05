@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.nucleo.texto import normalizar_codigo, normalizar_texto
+from app.nucleo.texto import (
+    normalizar_codigo,
+    normalizar_identificador,
+    normalizar_texto,
+)
 
 
 @pytest.mark.parametrize(
@@ -48,3 +52,10 @@ def test_no_une_codigos_distintos() -> None:
 def test_normalizar_texto_colapsa_espacios() -> None:
     assert normalizar_texto("  Juan   Martin  ") == "Juan Martin"
     assert normalizar_texto("Gestión") == "Gestión", "no debe tocar los acentos"
+
+
+def test_el_identificador_conserva_sus_separadores() -> None:
+    """Un codigo de regla es una etiqueta, no una clave de cruce."""
+    assert normalizar_identificador("  sod-009 ") == "SOD-009"
+    assert normalizar_identificador("abac 001") == "ABAC_001"
+    assert normalizar_identificador(None) == ""
