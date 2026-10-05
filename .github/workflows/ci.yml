@@ -1,0 +1,38 @@
+name: CI
+
+# Se ejecuta en cada push y en cada pull request contra main. Un fallo
+# bloquea la integracion: el analisis estatico, la verificacion de tipos y
+# la suite de pruebas tienen que pasar los tres.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verificacion:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Analisis estatico (ruff)
+        run: ruff check .
+
+      - name: Verificacion de tipos (mypy)
+        run: mypy
+
+      - name: Pruebas (pytest)
+        run: pytest --cov=app --cov=herramientas --cov-report=term-missing
