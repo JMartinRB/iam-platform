@@ -107,7 +107,12 @@ modelo configurado.
 cd backend
 pytest                 # suite completa
 ruff check .           # estilo
+mypy                   # tipos
 ```
+
+GitHub Actions corre las tres cosas en cada push y en cada pull request contra
+`main`; un fallo bloquea la integración. La cobertura actual de la suite es del
+95 % sobre `app` y `herramientas`.
 
 ## Estructura
 

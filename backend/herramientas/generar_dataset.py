@@ -37,6 +37,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from faker import Faker
 
@@ -190,7 +191,7 @@ class Generador:
             )
             for funcion in funciones:
                 descripcion, nivel, peso = FUNCIONES[funcion]
-                permiso = {
+                permiso: dict[str, Any] = {
                     "aplicacion_codigo": codigo,
                     "codigo": f"{codigo}_{funcion}",
                     "funcion": funcion,
@@ -199,7 +200,7 @@ class Generador:
                     "peso_riesgo": peso,
                 }
                 self.permisos.append(permiso)
-                self._permiso_por_codigo[permiso["codigo"]] = permiso
+                self._permiso_por_codigo[str(permiso["codigo"])] = permiso
                 self._permisos_por_funcion.setdefault(funcion, []).append(permiso)
 
         self._construir_reglas_sod()

@@ -13,6 +13,7 @@ pasa por la aplicacion.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
@@ -48,7 +49,7 @@ def ahora() -> datetime:
     return datetime.now(UTC)
 
 
-def _dominio(columna: str, enumerado: type) -> CheckConstraint:
+def _dominio(columna: str, enumerado: type[StrEnum]) -> CheckConstraint:
     """Genera un CHECK con los valores permitidos de un enumerado."""
     valores = ", ".join(f"'{miembro.value}'" for miembro in enumerado)
     return CheckConstraint(f"{columna} IN ({valores})", name=f"ck_{columna}_dominio")
