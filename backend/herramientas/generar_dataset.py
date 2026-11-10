@@ -45,6 +45,7 @@ from herramientas.catalogo import (
     APLICACIONES,
     FUNCIONES,
     PERFILES_ROL,
+    POLITICAS_ABAC,
     PUESTOS,
     REGLAS_SOD,
     UBICACIONES,
@@ -154,6 +155,7 @@ class Generador:
         self.usuarios: list[dict] = []
         self.asignaciones: list[dict] = []
         self.reglas_sod: list[dict] = []
+        self.politicas_abac: list[dict] = []
 
         # indices auxiliares
         self._permiso_por_codigo: dict[str, dict] = {}
@@ -205,6 +207,7 @@ class Generador:
 
         self._construir_reglas_sod()
         self._construir_roles()
+        self._construir_politicas_abac()
 
     def _construir_reglas_sod(self) -> None:
         """Instancia las reglas del catalogo sobre los permisos existentes.
@@ -279,6 +282,30 @@ class Generador:
                 "activa": True,
             }
         )
+
+    def _construir_politicas_abac(self) -> None:
+        """Instancia las politicas del catalogo sobre los permisos existentes.
+
+        Una politica declarada sobre una funcion se aplica a esa funcion en
+        todas las aplicaciones que la expongan, que es como se escriben en
+        la practica: la regla de negocio no distingue entre sistemas.
+        """
+        for sufijo, funcion, efecto, condicion, prioridad in POLITICAS_ABAC:
+            for permiso in self._permisos_por_funcion.get(funcion, []):
+                self.politicas_abac.append(
+                    {
+                        "codigo": f"ABAC-{sufijo}-{permiso['aplicacion_codigo']}",
+                        "descripcion": (
+                            f"{FUNCIONES[funcion][0]} en "
+                            f"{permiso['aplicacion_codigo']}: restriccion por atributos"
+                        ),
+                        "permiso_codigo": permiso["codigo"],
+                        "condicion": json.dumps(condicion, ensure_ascii=False),
+                        "efecto": efecto,
+                        "prioridad": prioridad,
+                        "activa": True,
+                    }
+                )
 
     def _conflictos(self, codigos: set[str]) -> list[dict]:
         """Devuelve las reglas que un conjunto de permisos infringe."""
@@ -923,6 +950,19 @@ class Generador:
             self.asignaciones + self.filas_malformadas,
         )
         self._csv(
+            carpeta / "politicas_abac.csv",
+            [
+                "codigo",
+                "descripcion",
+                "permiso_codigo",
+                "condicion",
+                "efecto",
+                "prioridad",
+                "activa",
+            ],
+            self.politicas_abac,
+        )
+        self._csv(
             carpeta / "reglas_sod.csv",
             [
                 "codigo",
@@ -973,6 +1013,7 @@ class Generador:
                 "usuarios_baja": len(self.usuarios) - activos,
                 "asignaciones": len(self.asignaciones),
                 "reglas_sod": len(self.reglas_sod),
+                "politicas_abac": len(self.politicas_abac),
                 "filas_totales_asignaciones": len(self.asignaciones)
                 + len(self.filas_malformadas),
             },

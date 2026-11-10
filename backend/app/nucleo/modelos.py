@@ -1,10 +1,14 @@
 """Modelo de datos de la plataforma (Figura 4.3 del documento).
 
-Trece entidades agrupadas en cuatro bloques: catalogo de accesos
+Catorce entidades agrupadas en cuatro bloques: catalogo de accesos
 (aplicacion, permiso, rol, rol_permiso), identidades y asignaciones
 (usuario, asignacion_acceso), politicas (regla_sod, politica_abac) y
-operacion (snapshot, hallazgo, solicitud_alta, script_generado,
-evento_auditoria).
+operacion (snapshot, hallazgo, excepcion_hallazgo, solicitud_alta,
+script_generado, evento_auditoria).
+
+La ultima, excepcion_hallazgo, se agrego despues de la Figura 4.3 para
+implementar el requerimiento RF-11, que salio de la validacion de diseno
+con usuarios.
 
 Los dominios cerrados de enums.py se replican como restricciones CHECK
 para que la base rechace valores invalidos incluso si la escritura no
@@ -335,7 +339,11 @@ class SolicitudAlta(Base):
     permisos_propuestos: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     conflictos_detectados: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     estado: Mapped[str] = mapped_column(String(10), nullable=False, default="pendiente")
-    solicitada_por: Mapped[str | None] = mapped_column(String(120))
+    # Obligatorio. La regla de que nadie aprueba lo que el mismo origino se
+    # evalua comparando este campo contra quien aprueba; si pudiera quedar
+    # nulo, una solicitud sin autor declarado pasaria el control por no
+    # tener con que compararse, que es justo el caso que hay que impedir.
+    solicitada_por: Mapped[str] = mapped_column(String(120), nullable=False)
     resuelta_por: Mapped[str | None] = mapped_column(String(120))
     creada_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=ahora
@@ -402,3 +410,70 @@ class EventoAuditoria(Base):
     ocurrido_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=ahora, index=True
     )
+
+
+class ExcepcionHallazgo(Base):
+    """Hallazgo que la organizacion decide aceptar, con su justificacion.
+
+    Responde al requerimiento RF-11, que salio de la validacion con
+    usuarios: un acceso que en los datos se ve riesgoso puede estar
+    justificado por el negocio, y un sistema que no admite esa distincion
+    obliga al analista a convivir con hallazgos que ya resolvio.
+
+    La excepcion no apunta al hallazgo sino al par usuario-categoria, y
+    opcionalmente a la regla de Segregacion de Funciones que lo origino. La
+    razon es el criterio de aceptacion: la excepcion tiene que seguir
+    valiendo en el diagnostico siguiente, y cada diagnostico produce filas
+    de hallazgo nuevas. Apuntar al identificador del hallazgo haria que la
+    excepcion caducara sola en la proxima corrida, que es justo lo
+    contrario de lo que se pide.
+
+    El afinado por regla existe porque es el unico que el motor permite: de
+    las cinco categorias, la de conflictos es la unica cuyos hallazgos
+    identifican que regla se infringio. En las otras cuatro el alcance es
+    necesariamente la categoria entera para ese usuario.
+
+    Se levanta en lugar de borrarse: una excepcion revocada deja rastro de
+    que existio y de quien la habia justificado.
+    """
+
+    __tablename__ = "excepcion_hallazgo"
+    __table_args__ = (
+        _dominio("categoria", Categoria),
+        UniqueConstraint(
+            "usuario_id", "categoria", "regla_sod_id", name="uq_excepcion_alcance"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuario.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    categoria: Mapped[str] = mapped_column(String(30), nullable=False)
+    regla_sod_id: Mapped[int | None] = mapped_column(
+        ForeignKey("regla_sod.id", ondelete="CASCADE")
+    )
+    motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    responsable: Mapped[str] = mapped_column(String(120), nullable=False)
+    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    creada_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=ahora
+    )
+    revocada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revocada_por: Mapped[str | None] = mapped_column(String(120))
+
+    usuario: Mapped[Usuario] = relationship()
+    regla_sod: Mapped[ReglaSoD | None] = relationship()
+
+    def alcanza(self, categoria: str, regla_sod_id: int | None) -> bool:
+        """Indica si esta excepcion cubre un hallazgo dado.
+
+        Una excepcion sin regla cubre toda la categoria para ese usuario;
+        con regla, solo los hallazgos de esa regla. Lo primero sirve para
+        'esta cuenta de servicio siempre va a figurar dormida'; lo segundo,
+        para 'este conflicto puntual esta aprobado por el negocio, los
+        demas no'.
+        """
+        if not self.activa or self.categoria != categoria:
+            return False
+        return self.regla_sod_id is None or self.regla_sod_id == regla_sod_id

@@ -74,7 +74,14 @@ def alta_usuario(s: Session, legajo: str = "U00001") -> m.Usuario:
 # ---------------------------------------------------------------------------
 
 
-def test_el_esquema_tiene_las_trece_entidades(sesion: Session) -> None:
+def test_el_esquema_tiene_las_catorce_entidades(sesion: Session) -> None:
+    """Cambiar este conjunto exige cambiar la prueba, que es el punto.
+
+    Una entidad nueva o una que desaparece tiene que ser una decisión
+    explícita y no el efecto colateral de otra cosa: si el esquema se
+    mueve sin que nadie lo note, la Figura 4.3 del documento deja de
+    describir el sistema.
+    """
     esperadas = {
         "aplicacion",
         "permiso",
@@ -89,6 +96,7 @@ def test_el_esquema_tiene_las_trece_entidades(sesion: Session) -> None:
         "solicitud_alta",
         "script_generado",
         "evento_auditoria",
+        "excepcion_hallazgo",
     }
     assert set(m.Base.metadata.tables) == esperadas
 

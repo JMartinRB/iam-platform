@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date
@@ -24,6 +25,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.modulos.expresiones import ErrorExpresion, validar
 from app.nucleo.enums import (
     Criticidad,
     EstadoUsuario,
@@ -36,6 +38,7 @@ from app.nucleo.modelos import (
     AsignacionAcceso,
     EventoAuditoria,
     Permiso,
+    PoliticaABAC,
     ReglaSoD,
     Rol,
     RolPermiso,
@@ -56,6 +59,7 @@ ARCHIVOS = (
     "usuarios.csv",
     "asignaciones.csv",
     "reglas_sod.csv",
+    "politicas_abac.csv",
 )
 
 VERDADEROS = {"true", "1", "si", "sí", "yes", "x"}
@@ -148,12 +152,21 @@ def importar_dataset(
     carpeta: Path,
     etiqueta: str | None = None,
     actor: str = "sistema",
+    origen: str | None = None,
 ) -> ResultadoImportacion:
     """Carga un dataset completo y devuelve el detalle de lo que entro.
 
     El orden de carga sigue las dependencias: primero el catalogo, despues
     las identidades, por ultimo las asignaciones y las reglas, que apuntan a
     todo lo anterior.
+
+    ``origen`` es lo que queda registrado como procedencia del snapshot y
+    es lo que despues muestra la evidencia de cada hallazgo. Por omision es
+    la ruta de la carpeta, que es lo correcto para un export que alguien
+    dejo en un disco. Cuando los archivos vienen de una carpeta temporal
+    —porque se generaron o se subieron por la interfaz— esa ruta no
+    identifica nada, y quien la escribe pasa una descripcion que si lo
+    haga.
     """
     carpeta = Path(carpeta)
     faltantes = [n for n in ARCHIVOS if not (carpeta / n).exists()]
@@ -164,7 +177,7 @@ def importar_dataset(
 
     snapshot = Snapshot(
         etiqueta=etiqueta or carpeta.name,
-        origen_archivo=str(carpeta),
+        origen_archivo=origen or str(carpeta),
         hash_archivo=_hash_carpeta(carpeta),
     )
     sesion.add(snapshot)
@@ -181,6 +194,7 @@ def importar_dataset(
     usuarios = _cargar_usuarios(sesion, carpeta, resultado)
     _cargar_asignaciones(sesion, carpeta, usuarios, permisos, roles, resultado)
     _cargar_reglas_sod(sesion, carpeta, permisos, resultado)
+    _cargar_politicas_abac(sesion, carpeta, permisos, resultado)
 
     snapshot.filas_leidas = resultado.leidas
     snapshot.filas_descartadas = resultado.descartadas
@@ -569,6 +583,83 @@ def _cargar_reglas_sod(
         r.aceptadas += 1
     sesion.flush()
     r.conteos["reglas_sod"] = len(vistos)
+
+
+def _cargar_politicas_abac(
+    sesion: Session,
+    carpeta: Path,
+    permisos: dict[str, Permiso],
+    r: ResultadoImportacion,
+) -> None:
+    """Carga las politicas de atributos, validando la expresion al entrar.
+
+    La condicion se valida en la importacion y no en la evaluacion. Una
+    politica mal escrita que se descubre recien al resolver un alta deja al
+    sistema decidiendo accesos con una regla rota; descubierta en la carga,
+    es una fila rechazada con su motivo.
+    """
+    vistos: set[str] = set()
+    for linea, fila in _filas(carpeta / "politicas_abac.csv"):
+        r.leidas += 1
+        codigo = normalizar_identificador(fila.get("codigo"))
+        permiso_codigo = normalizar_codigo(fila.get("permiso_codigo"))
+        efecto = fila.get("efecto", "permitir").lower()
+
+        if not codigo or codigo in vistos:
+            r.rechazos.append(
+                Rechazo("politicas_abac.csv", linea, "codigo vacio o repetido", codigo)
+            )
+            continue
+        if permiso_codigo not in permisos:
+            r.rechazos.append(
+                Rechazo(
+                    "politicas_abac.csv", linea, "permiso inexistente", permiso_codigo
+                )
+            )
+            continue
+        if efecto not in ("permitir", "negar"):
+            r.rechazos.append(
+                Rechazo("politicas_abac.csv", linea, "efecto fuera del dominio", efecto)
+            )
+            continue
+        try:
+            condicion = json.loads(fila.get("condicion") or "{}")
+            validar(condicion)
+        except (json.JSONDecodeError, ErrorExpresion) as error:
+            r.rechazos.append(
+                Rechazo("politicas_abac.csv", linea, "condicion invalida", str(error))
+            )
+            continue
+        try:
+            prioridad = int(fila.get("prioridad") or 50)
+        except ValueError:
+            r.rechazos.append(
+                Rechazo("politicas_abac.csv", linea, "prioridad no numerica",
+                        fila.get("prioridad", ""))
+            )
+            continue
+        if not 1 <= prioridad <= 100:
+            r.rechazos.append(
+                Rechazo("politicas_abac.csv", linea, "prioridad fuera de rango",
+                        str(prioridad))
+            )
+            continue
+
+        vistos.add(codigo)
+        sesion.add(
+            PoliticaABAC(
+                codigo=codigo,
+                descripcion=normalizar_texto(fila.get("descripcion")) or codigo,
+                permiso_id=permisos[permiso_codigo].id,
+                condicion=condicion,
+                efecto=efecto,
+                prioridad=prioridad,
+                activa=_booleano(fila.get("activa", "true")),
+            )
+        )
+        r.aceptadas += 1
+    sesion.flush()
+    r.conteos["politicas_abac"] = len(vistos)
 
 
 def resumen(resultado: ResultadoImportacion) -> dict[str, Any]:

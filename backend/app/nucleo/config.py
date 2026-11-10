@@ -1,11 +1,29 @@
 """Configuración de la aplicación, leída de variables de entorno."""
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# El .env vive en la raíz del repositorio, que es donde lo deja el script
+# que configura la clave y donde está el .env.example que lo documenta.
+#
+# La ruta se resuelve de forma absoluta a partir de la ubicación de este
+# archivo, y no relativa al directorio desde el que se ejecuta el proceso.
+# La diferencia no es cosmética: casi todos los comandos del proyecto se
+# corren parados en backend/, así que un `.env` relativo apuntaba a
+# backend/.env, un archivo que no existe. El efecto era que la clave del
+# modelo quedaba sin leer y cualquier llamada al proveedor real fallaba
+# diciendo que faltaba la clave, con la clave ahí escrita.
+RAIZ = Path(__file__).resolve().parents[3]
+
 
 class Configuracion(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Se admiten los dos: el de la raíz y, si existe, uno propio de
+    # backend/. El segundo pisa al primero, que es lo que permite ajustar
+    # algo puntual sin tocar el archivo compartido.
+    model_config = SettingsConfigDict(
+        env_file=(RAIZ / ".env", Path(".env")), extra="ignore"
+    )
 
     database_url: str = "sqlite+pysqlite:///./iam.db"
 

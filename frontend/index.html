@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IAM Insight · Análisis y remediación de accesos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%2316303c'/><rect x='8' y='13' width='16' height='12' rx='2' fill='%236fb3c4'/><path d='M12 13v-3a4 4 0 0 1 8 0v3' stroke='%236fb3c4' stroke-width='2.4' fill='none'/></svg>">
+<link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+
+<div class="armazon">
+  <nav class="lateral">
+    <div class="marca">
+      <h1>IAM Insight</h1>
+      <p>Análisis y remediación de accesos</p>
+    </div>
+
+    <div class="grupo-nav">
+      <span>Diagnóstico</span>
+      <button class="nav" data-pantalla="panel">Panel de hallazgos</button>
+      <button class="nav" data-pantalla="carga">Carga de datasets</button>
+    </div>
+
+    <div class="grupo-nav">
+      <span>Asignación</span>
+      <button class="nav" data-pantalla="altas">Altas pendientes</button>
+    </div>
+
+    <div class="grupo-nav">
+      <span>Trazabilidad</span>
+      <button class="nav" data-pantalla="scripts">Scripts generados</button>
+      <button class="nav" data-pantalla="auditoria">Registro de auditoría</button>
+    </div>
+  </nav>
+
+  <main class="principal" id="principal">
+    <div class="cargando">Cargando…</div>
+  </main>
+</div>
+
+<div id="modal"></div>
+
+<script src="js/api.js"></script>
+<script src="js/vista.js"></script>
+<script src="js/panel.js"></script>
+<script src="js/carga.js"></script>
+<script src="js/altas.js"></script>
+<script src="js/trazabilidad.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

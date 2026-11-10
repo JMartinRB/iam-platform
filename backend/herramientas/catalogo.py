@@ -271,3 +271,69 @@ REGLAS_SOD: list[tuple[str, str, str, str]] = [
         "unico operador sin control por oposicion.",
     ),
 ]
+
+# ---------------------------------------------------------------------------
+# Politicas ABAC. Se expresan sobre funciones y el generador las instancia
+# para cada aplicacion que exponga esa funcion. La condicion usa el
+# interprete acotado de app.modulos.expresiones.
+# ---------------------------------------------------------------------------
+
+POLITICAS_ABAC: list[tuple[str, str, str, dict, int]] = [
+    # (sufijo, funcion, efecto, condicion, prioridad)
+    (
+        "ADMIN-IDENT",
+        "ADMIN_USUARIOS",
+        "negar",
+        {"no": {"igual": ["area", "Tecnologia"]}},
+        90,
+    ),
+    (
+        "ADMIN-PLAT",
+        "ADMIN_CONFIG",
+        "negar",
+        {"no": {"igual": ["area", "Tecnologia"]}},
+        90,
+    ),
+    (
+        "EXPORT-REMOTO",
+        "EXPORT_MASIVO",
+        "negar",
+        {"igual": ["ubicacion", "Remoto"]},
+        80,
+    ),
+    (
+        "PAGOS-FIN",
+        "APROB_PAGOS",
+        "negar",
+        {"no_en": ["area", ["Finanzas", "Recursos Humanos"]]},
+        85,
+    ),
+    (
+        "CIERRE-FIN",
+        "CIERRE_CONTABLE",
+        "negar",
+        {"no": {"igual": ["area", "Finanzas"]}},
+        85,
+    ),
+    (
+        "ALTA-PROV",
+        "ALTA_PROVEEDOR",
+        "negar",
+        {"no_en": ["area", ["Compras", "Finanzas"]]},
+        70,
+    ),
+    (
+        "INGRESANTE",
+        "MODIF_DATOS",
+        "negar",
+        {"menor": ["antiguedad_dias", 30]},
+        60,
+    ),
+    (
+        "BAJA",
+        "CONSULTA",
+        "negar",
+        {"distinto": ["estado", "activo"]},
+        100,
+    ),
+]

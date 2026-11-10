@@ -501,6 +501,76 @@ def analizar(
     return hallazgos
 
 
+def indice_riesgo(hallazgos: list[Hallazgo], usuarios: int) -> int:
+    """Indice agregado del snapshot, de 0 a 100 (RF-08).
+
+    El puntaje de cada hallazgo no se normaliza a proposito: sirve para
+    ordenar la cola de trabajo, no para compararse contra un absoluto. Pero
+    el panel necesita un numero unico que se pueda mirar de un vistazo y
+    comparar entre snapshots, y sumar puntajes sin normalizar no sirve para
+    eso, porque crece con el tamano de la organizacion.
+
+    Entonces el indice se construye sobre la poblacion y no sobre la suma:
+    de cada usuario senalado se toma su hallazgo mas grave, se suma el peso
+    de esa severidad, y se divide por el peso que tendria esa misma
+    poblacion si todos sus integrantes tuvieran un hallazgo critico.
+
+        indice = 100 * suma(peso de la peor severidad de cada usuario)
+                 / (10 * cantidad de usuarios analizados)
+
+    Dos consecuencias buscadas. Un usuario con doce hallazgos medios no
+    pesa mas que uno con un solo hallazgo critico, porque lo que se mide es
+    cuan comprometida esta la poblacion y no cuantos registros se emitieron.
+    Y el indice es comparable entre organizaciones de tamanos distintos,
+    que es lo que permite seguirlo a lo largo de varios snapshots.
+
+    Es deterministico: las mismas entradas dan el mismo entero.
+    """
+    if usuarios <= 0:
+        return 0
+
+    peor_por_usuario: dict[int, int] = {}
+    for h in hallazgos:
+        if h.usuario_id is None:
+            continue
+        peso = PESO_SEVERIDAD[Severidad(str(h.severidad))]
+        anterior = peor_por_usuario.get(h.usuario_id, 0)
+        if peso > anterior:
+            peor_por_usuario[h.usuario_id] = peso
+
+    maximo = PESO_SEVERIDAD[Severidad.CRITICA] * usuarios
+    return round(100 * sum(peor_por_usuario.values()) / maximo)
+
+
+def nivel_de_riesgo(indice: int) -> str:
+    """Etiqueta del indice.
+
+    Las bandas no estan puestas por como se ven: cada una corresponde a una
+    respuesta operativa distinta, que es lo unico que vuelve util a una
+    etiqueta cualitativa.
+
+    - bajo, menos de 15: los hallazgos se remedian de a uno.
+    - medio, de 15 a 34: hace falta una campana focalizada sobre las areas
+      o los puestos que concentran los hallazgos.
+    - alto, de 35 a 59: el problema es del esquema de accesos y no de
+      casos sueltos; corresponde una recertificacion general.
+    - critico, 60 o mas: buena parte de la poblacion tiene hallazgos
+      graves y el catalogo de roles necesita rehacerse.
+
+    Un indice de 25 no es "poco": significa que una cuarta parte del peso
+    maximo posible esta efectivamente presente, con una poblacion donde el
+    caso tipico es un hallazgo critico. De ahi que las bandas sean mas
+    exigentes de lo que sugeriria repartir cien en cuatro partes iguales.
+    """
+    if indice >= 60:
+        return "critico"
+    if indice >= 35:
+        return "alto"
+    if indice >= 15:
+        return "medio"
+    return "bajo"
+
+
 def resumen(hallazgos: list[Hallazgo], usuarios: int = 0) -> dict[str, Any]:
     """Agregados que consume el panel de diagnostico."""
     por_categoria: dict[str, int] = defaultdict(int)
@@ -511,10 +581,17 @@ def resumen(hallazgos: list[Hallazgo], usuarios: int = 0) -> dict[str, Any]:
         por_severidad[str(h.severidad)] += 1
         total += float(h.puntaje)
 
+    indice = indice_riesgo(hallazgos, usuarios)
+    senalados = len({h.usuario_id for h in hallazgos if h.usuario_id is not None})
+
     return {
         "hallazgos": len(hallazgos),
         "por_categoria": dict(por_categoria),
         "por_severidad": dict(por_severidad),
         "riesgo_total": round(total, 2),
         "riesgo_por_usuario": round(total / usuarios, 2) if usuarios else None,
+        "indice_riesgo": indice,
+        "nivel_riesgo": nivel_de_riesgo(indice),
+        "usuarios_analizados": usuarios,
+        "usuarios_senalados": senalados,
     }

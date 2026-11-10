@@ -1,0 +1,30 @@
+{
+  "proveedor": "gemini",
+  "modelo": "gemini-flash-latest",
+  "casos_por_plataforma": 100,
+  "umbral": 0.8,
+  "plataformas": {
+    "powershell": {
+      "generaciones": 100,
+      "validas_sin_regenerar": 1,
+      "validas_tras_reintentar": 1,
+      "errores_de_proveedor": 99,
+      "tasa_sin_regenerar": 0.01,
+      "tasa_final": 0.01,
+      "intentos_promedio": 1,
+      "latencia_mediana_s": 0.508,
+      "motivos_de_rechazo": {}
+    },
+    "okta": {
+      "generaciones": 100,
+      "validas_sin_regenerar": 0,
+      "validas_tras_reintentar": 0,
+      "errores_de_proveedor": 100,
+      "tasa_sin_regenerar": 0.0,
+      "tasa_final": 0.0,
+      "intentos_promedio": 1,
+      "latencia_mediana_s": 0.484,
+      "motivos_de_rechazo": {}
+    }
+  }
+}

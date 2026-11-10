@@ -9,11 +9,15 @@ sostener hoy:
   caminos distintos.
 * I-02, hallazgos detectados: precision y exhaustividad por categoria sobre
   D-2, contra la verdad de referencia del manifiesto.
+* I-03, conflictos interceptados: para cada regla de Segregacion de
+  Funciones se arma un alta que pide el permiso incompatible con algo que la
+  persona ya tiene, y se cuenta cuantas quedan bloqueadas antes del
+  otorgamiento.
 * I-05, consistencia: tres corridas del mismo analisis, comparando el
   conjunto completo de hallazgos y no solo la cantidad.
 
-Los indicadores I-03 y I-04 dependen del motor de politicas y de la capa de
-generacion, que son modulos posteriores, y por eso no figuran aca.
+El indicador I-04 depende de la capa de generacion de scripts, que es un
+modulo posterior, y por eso no figura aca.
 
 Uso:
     python -m herramientas.medir
@@ -31,13 +35,14 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.modulos.analisis import ParametrosAnalisis, analizar, resumen
 from app.modulos.importacion import importar_dataset
+from app.modulos.politicas import resolver_alta
 from app.nucleo.base_datos import Base, crear_motor
-from app.nucleo.modelos import Hallazgo
+from app.nucleo.modelos import AsignacionAcceso, Hallazgo, Permiso, ReglaSoD, Usuario
 from herramientas.generar_dataset import PERFILES, generar
 
 FECHA_CORTE = date(2026, 10, 1)
@@ -115,6 +120,7 @@ def medir_perfil(perfil_id: str, carpeta: Path, url: str) -> dict[str, Any]:
         datos["i01"] = _rendimiento(sesion, importacion.snapshot_id, parametros)
     if perfil_id == "D-2":
         datos["i05"] = _consistencia(sesion, importacion.snapshot_id, parametros)
+    datos["i03"] = _conflictos_interceptados(sesion)
 
     sesion.close()
     motor.dispose()
@@ -196,6 +202,62 @@ def _consistencia(
     }
 
 
+def _conflictos_interceptados(sesion: Session) -> dict[str, Any]:
+    """Indicador I-03, sobre todas las reglas del conjunto.
+
+    No se eligen casos a mano: se recorre la matriz completa de
+    incompatibilidades. Para cada regla se busca a alguien que tenga una de
+    las dos mitades y se pide la otra, que es la forma en que el conflicto
+    aparece en la practica.
+    """
+    permisos = {p.id: p for p in sesion.scalars(select(Permiso)).all()}
+    reglas = sesion.scalars(select(ReglaSoD).where(ReglaSoD.activa.is_(True))).all()
+
+    tenedores: dict[int, int] = {}
+    for asignacion in sesion.scalars(
+        select(AsignacionAcceso).where(AsignacionAcceso.activa.is_(True))
+    ).all():
+        tenedores.setdefault(asignacion.permiso_id, asignacion.usuario_id)
+
+    evaluados = 0
+    bloqueados = 0
+    sin_caso = 0
+    for regla in reglas:
+        usuario_id = tenedores.get(regla.permiso_a_id) or tenedores.get(
+            regla.permiso_b_id
+        )
+        if usuario_id is None:
+            sin_caso += 1
+            continue
+        pide = (
+            regla.permiso_b_id
+            if tenedores.get(regla.permiso_a_id) == usuario_id
+            else regla.permiso_a_id
+        )
+        usuario = sesion.get(Usuario, usuario_id)
+        if usuario is None:
+            sin_caso += 1
+            continue
+        resolucion = resolver_alta(
+            sesion,
+            usuario,
+            fecha_corte=FECHA_CORTE,
+            permisos_solicitados=[permisos[pide].codigo],
+        )
+        evaluados += 1
+        if permisos[pide].codigo not in {p.codigo for p in resolucion.otorgados}:
+            bloqueados += 1
+
+    return {
+        "reglas": len(reglas),
+        "altas_evaluadas": evaluados,
+        "bloqueadas": bloqueados,
+        "sin_caso_disponible": sin_caso,
+        "proporcion": round(bloqueados / evaluados, 4) if evaluados else 0.0,
+        "umbral": 1.0,
+    }
+
+
 def imprimir(resultados: list[dict[str, Any]]) -> None:
     for datos in resultados:
         v = datos["volumen"]
@@ -219,6 +281,10 @@ def imprimir(resultados: list[dict[str, Any]]) -> None:
               f"{c['falsos_positivos']:>5}{c['falsos_negativos']:>5}"
               f"{c['precision']:>8.3f}{c['exhaustividad']:>8.3f}")
 
+        if "i03" in datos:
+            i = datos["i03"]
+            print(f"  I-03: {i['bloqueadas']}/{i['altas_evaluadas']} altas con "
+                  f"conflicto bloqueadas ({i['proporcion']:.1%})")
         if "i01" in datos:
             i = datos["i01"]
             print(f"  I-01: mediana {i['mediana_segundos']} s, "
