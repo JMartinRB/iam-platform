@@ -36,3 +36,8 @@ backend/_tmp_autogen.db
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Scripts de diagnostico y corridas descartadas
+diagnostico_gemini.py
+medir_con_groq.py
+medicion_generacion*.json

@@ -505,7 +505,7 @@ def test_la_auditoria_no_expone_escritura(cliente: TestClient) -> None:
 def test_la_interfaz_se_sirve_desde_la_raiz(cliente: TestClient) -> None:
     respuesta = cliente.get("/")
     assert respuesta.status_code == 200
-    assert "IAM Insight" in respuesta.text
+    assert "SAGA" in respuesta.text
 
 
 def test_los_archivos_de_la_interfaz_se_sirven(cliente: TestClient) -> None:

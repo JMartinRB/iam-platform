@@ -1,4 +1,6 @@
-# IAM Insight
+<img src="docs/logo-saga.png" alt="SAGA" width="330">
+
+# SAGA · Sistema de Análisis y Gestión de Accesos
 
 Plataforma de análisis, asignación y remediación de accesos en entornos IAM,
 con generación asistida de scripts mediante modelos de lenguaje.
